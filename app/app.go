@@ -3,10 +3,12 @@ package app
 import (
 	"calculator/consts"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/Knetic/govaluate"
 )
 
 /*
@@ -32,7 +34,7 @@ func ServeCalc(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Something Went Wrong"))
+		w.Write([]byte(consts.StatusInternalServerError))
 		return
 
 	}
@@ -41,15 +43,48 @@ func ServeCalc(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Something Went Wrong"))
+		w.Write([]byte(consts.StatusInternalServerError))
 		return
 	}
 
-	fmt.Println(p.Expression)
+	_, err = Valuate(p.Expression)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(consts.StatusInternalServerError))
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("success"))
 }
 
 type Payload struct {
 	Expression string `json:"exp"`
+}
+
+func Valuate(exp string) (float64, error) {
+	var (
+		answer float64
+		ok     bool
+	)
+
+	arithExp, err := govaluate.NewEvaluableExpression(exp)
+	if err != nil {
+		log.Println("make err: ", err)
+		return 0, err
+	}
+
+	result, err := arithExp.Evaluate(nil)
+	if err != nil {
+		log.Println("evaluate err: ", err)
+		return 0, err
+	}
+
+	if answer, ok = result.(float64); !ok {
+		log.Printf("cannot convert the answer for expression :%s", exp)
+		return 0, errors.New("cannot convert the answer for expression :" + exp)
+	}
+
+	return answer, nil
+
 }
